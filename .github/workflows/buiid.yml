@@ -1,0 +1,47 @@
+name: Release Kingdom Hearts Tools
+
+on:
+  push:
+  pull_request:
+
+  release:
+    types: [published]
+
+  workflow_dispatch:
+  
+jobs:
+  build_wheel:
+    name: Build Python Wheel
+    permissions: write-all
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.11'
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+
+    - name: Install dependencies
+      run: poetry install --no-interaction
+        
+    - name: Generate Python Wheels
+      run: poetry build
+
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v3.1.1
+      with:
+        # Artifact name
+        name: PythonBuild
+        path: dist/*
+
+    - name: Upload Release
+      if: ${{ github.event_name == 'release' }}
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.get_version.outputs.tag_name }}
+        files: dist/*
