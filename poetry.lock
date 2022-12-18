@@ -57,6 +57,18 @@ files = [
 python-dateutil = "*"
 
 [[package]]
+name = "polib"
+version = "1.1.1"
+description = "A library to manipulate gettext files (po and mo files)."
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "polib-1.1.1-py2.py3-none-any.whl", hash = "sha256:d3ee85e0c6788f789353416b1612c6c92d75fe6ccfac0029711974d6abd0f86d"},
+    {file = "polib-1.1.1.tar.gz", hash = "sha256:e02c355ae5e054912e3b0d16febc56510eff7e49d60bf22aecb463bd2f2a2dfa"},
+]
+
+[[package]]
 name = "pygments"
 version = "2.13.0"
 description = "Pygments is a syntax highlighting package written in Python."
@@ -156,4 +168,4 @@ test = ["black (>=22.3.0,<23.0.0)", "coverage (>=6.2,<7.0)", "isort (>=5.0.6,<6.
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "4e673e44fae8cc682be5220016a6f70f41352f499bdc4830a765fd90e63b0e25"
+content-hash = "4d1d97f5526c0aac0d12d1c02760e78e9d222c0bb1bb86fbe466ee2b4abe5fce"
