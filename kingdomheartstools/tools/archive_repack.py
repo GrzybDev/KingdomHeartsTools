@@ -1,17 +1,17 @@
 import json
+import logging
 import struct
 import zlib
-import logging
+
 import filedate
 
 logger = logging.getLogger(__name__)
 
 
 class ArchiveRepack:
-
-    __file_list = []
-
     def __init__(self, input_path, output_path):
+        self.__file_list = []
+
         self.input_path = input_path
         self.output_path = output_path
 

@@ -9,10 +9,9 @@ from kingdomheartstools.helpers.TIM2 import TIM2
 
 
 class L2DConvert:
-
-    images = []
-
     def __init__(self, input_path) -> None:
+        self.images = []
+
         self.output_path = Path(input_path).parent / Path(input_path).stem
         self.l2d = open(input_path, "rb")
 

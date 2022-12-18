@@ -1,28 +1,28 @@
-from datetime import datetime
 import glob
 import hashlib
-from io import BytesIO
 import json
 import logging
 import os
-from pathlib import Path
 import sys
 import zlib
+from datetime import datetime
+from io import BytesIO
+from pathlib import Path
+
 import filedate
+
 from ..common.AssetHeader import AssetHeader
 from ..common.HeaderEntry import HeaderEntry
-
 from ..resources import path as resource_path
 
 logger = logging.getLogger(__name__)
 
 
 class ArchiveExtract:
-
-    __file_map = {}
-    __file_list = {}
-
     def __init__(self, input_path, output_path):
+        self.__file_map = {}
+        self.__file_list = {}
+
         self.package = open(Path(input_path).with_suffix(".pkg"), "rb")
         self.output_path = output_path
 

@@ -5,10 +5,9 @@ from kingdomheartstools.helpers.TIM2 import TIM2
 
 
 class FontExtract:
-
-    __char_map = []
-
     def __init__(self, input_path) -> None:
+        self.__char_map = []
+
         font_info_path = Path(input_path).with_suffix(".inf")
         self.__read_font_info(font_info_path)
 

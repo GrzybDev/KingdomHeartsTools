@@ -1,4 +1,5 @@
 import json
+import sys
 import unicodedata
 from pathlib import Path
 
@@ -11,14 +12,16 @@ from ..common.ctd.Text import Text
 
 
 class CTDDecompile:
-
-    header = None
-
-    message_entries = []
-    layout_entries = []
-    text_entries = []
-
     def __init__(self, input_path):
+        self.header = None
+
+        self.message_entries = []
+        self.layout_entries = []
+        self.text_entries = []
+
+        self.last_offset = -1
+        self.offset_multiplier = 0
+
         self.input_path = input_path
         self.ctd = open(input_path, "rb")
 

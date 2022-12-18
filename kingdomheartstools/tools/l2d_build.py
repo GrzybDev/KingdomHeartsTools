@@ -12,10 +12,8 @@ from kingdomheartstools.helpers.TIM2 import TIM2
 
 
 class L2DBuild:
-
-    image_map = {}
-
     def __init__(self, input_folder, original_file_path):
+        self.image_map = {}
         self.images = glob.glob(os.path.join(input_folder, "*.png"))
 
         for image in self.images:
