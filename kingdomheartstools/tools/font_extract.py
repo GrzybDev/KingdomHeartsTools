@@ -56,7 +56,6 @@ class FontExtract:
             json.dump(font_meta, f)
 
         font = font_texture.get_image()
-        font.save(self.output_path / "font.jpg")
 
         for i, char in enumerate(self.__char_map):
             char_image = font.crop(
