@@ -1,4 +1,4 @@
-from io import BytesIO
+from pathlib import Path
 
 from PIL import Image
 
@@ -6,13 +6,15 @@ from ..common.tim.ImageData import ImageData
 
 
 class TIM2:
-
-    image_info = []
-    images = []
-
     def __init__(self, **kwargs) -> None:
-        if kwargs.get("path"):
-            self.tim2 = open(kwargs["path"], "rb")
+        self.image_info = []
+        self.images = []
+
+        if kwargs.get("path") or kwargs.get("reader"):
+            if kwargs.get("reader"):
+                self.tim2 = kwargs.get("reader")
+            else:
+                self.tim2 = open(kwargs["path"], "rb")
 
             self.__read_header()
 
@@ -28,7 +30,7 @@ class TIM2:
         self.version = int.from_bytes(self.tim2.read(2), "little")
         self.numImages = int.from_bytes(self.tim2.read(2), "little")
 
-        self.tim2.seek(0x10)
+        self.tim2.seek(self.tim2.tell() + (self.tim2.tell() % 16))
 
     def __read_image(self):
         start_offset = self.tim2.tell()
@@ -72,32 +74,41 @@ class TIM2:
         image_header["version"] = self.version
         return image_header
 
-    def save(self, path):
-        with open(path, "wb") as f:
-            f.write("TIM2".encode("utf-8"))
-            f.write(int.to_bytes(self.version, 2, "little"))
-            f.write(int.to_bytes(len(self.image_info), 2, "little"))
-            f.write(b"\x00" * 8)
+    def save(self, target):
+        if isinstance(target, Path):
+            f = open(target, "wb")
+        else:
+            f = target
 
-            for i, image_info in enumerate(self.image_info):
-                start_offset = f.tell()
-                f.write(int.to_bytes(image_info.totalImageLength, 4, "little"))
-                f.write(int.to_bytes(image_info.paletteLength, 4, "little"))
-                f.write(int.to_bytes(image_info.imageDataLength, 4, "little"))
-                f.write(int.to_bytes(image_info.headerLength, 2, "little"))
-                f.write(int.to_bytes(image_info.colorEntries, 2, "little"))
-                f.write(int.to_bytes(image_info.imageFormat, 1, "little"))
-                f.write(int.to_bytes(image_info.mipmapCount, 1, "little"))
-                f.write(int.to_bytes(image_info.clutFormat, 1, "little"))
-                f.write(int.to_bytes(image_info.bitsPerPixel, 1, "little"))
-                f.write(int.to_bytes(image_info.imageWidth, 2, "little"))
-                f.write(int.to_bytes(image_info.imageHeight, 2, "little"))
-                f.write(int.to_bytes(image_info.gsTEX0, 8, "little"))
-                f.write(int.to_bytes(image_info.gsTEX1, 8, "little"))
-                f.write(int.to_bytes(image_info.gsRegs, 8, "little"))
-                f.write(int.to_bytes(image_info.gsTexClut, 8, "little"))
-                end_offset = f.tell()
+        f.write("TIM2".encode("utf-8"))
+        f.write(int.to_bytes(self.version, 2, "little"))
+        f.write(int.to_bytes(len(self.image_info), 2, "little"))
+        f.write(b"\x00" * (f.tell() % 16))
 
-                padding_length = image_info.headerLength - (end_offset - start_offset)
+        for i, image_info in enumerate(self.image_info):
+            start_offset = f.tell()
+            f.write(int.to_bytes(image_info.totalImageLength, 4, "little"))
+            f.write(int.to_bytes(image_info.paletteLength, 4, "little"))
+            f.write(int.to_bytes(image_info.imageDataLength, 4, "little"))
+            f.write(int.to_bytes(image_info.headerLength, 2, "little"))
+            f.write(int.to_bytes(image_info.colorEntries, 2, "little"))
+            f.write(int.to_bytes(image_info.imageFormat, 1, "little"))
+            f.write(int.to_bytes(image_info.mipmapCount, 1, "little"))
+            f.write(int.to_bytes(image_info.clutFormat, 1, "little"))
+            f.write(int.to_bytes(image_info.bitsPerPixel, 1, "little"))
+            f.write(int.to_bytes(image_info.imageWidth, 2, "little"))
+            f.write(int.to_bytes(image_info.imageHeight, 2, "little"))
+            f.write(int.to_bytes(image_info.gsTEX0, 8, "little"))
+            f.write(int.to_bytes(image_info.gsTEX1, 8, "little"))
+            f.write(int.to_bytes(image_info.gsRegs, 8, "little"))
+            f.write(int.to_bytes(image_info.gsTexClut, 8, "little"))
+            end_offset = f.tell()
+
+            padding_length = image_info.headerLength - (end_offset - start_offset)
+
+            if padding_length > 0:
                 f.write(b"\x00" * padding_length)
-                f.write(self.images[i].tobytes("raw", "RGBA"))
+            else:
+                f.seek(padding_length, 1)
+
+            f.write(self.images[i].tobytes("raw", "RGBA"))
