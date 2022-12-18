@@ -38,8 +38,6 @@ class CTDDecompile:
             unknown_3=int.from_bytes(self.ctd.read(4), "little"),
         )
 
-        print(self.header)
-
         if self.header.signature != "@CTD":
             raise Exception("Invalid signature")
 
