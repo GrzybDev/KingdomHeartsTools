@@ -80,12 +80,28 @@ class CTDDecompile:
             self.text_entries.append(Text(index=i, text=self.__format_string(text)))
 
     def __read_message_header(self):
-        return MessageHeader(
+        message = MessageHeader(
             id=int.from_bytes(self.ctd.read(2), "little"),
             set=int.from_bytes(self.ctd.read(2), "little"),
-            offset=int.from_bytes(self.ctd.read(2), "little"),
+            offset=int.from_bytes(self.ctd.read(2), "little") - self.header.text_offset,
             layoutIndex=int(int.from_bytes(self.ctd.read(2), "little") / 0x10),
         )
+
+        real_offset = (
+            self.header.text_offset
+            + ((0xFFFF * self.offset_multiplier) + message.offset)
+            + self.offset_multiplier
+        )
+
+        if real_offset < self.last_offset:
+            self.offset_multiplier += 1
+            real_offset = self.header.text_offset + (
+                (0xFFFF * self.offset_multiplier) + message.offset
+            )
+
+        message.offset = real_offset
+        self.last_offset = real_offset
+        return message
 
     def __read_layout(self):
         return Layout(
