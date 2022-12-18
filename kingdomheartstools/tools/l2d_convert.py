@@ -39,7 +39,18 @@ class L2DConvert:
             unknown_3=int.from_bytes(self.l2d.read(16), "little"),
         )
 
-        self.l2d.seek(self.header.sq2p_offset + 16)
+        # Find first SQ2P string
+        text = ""
+
+        while text != "SQ2P":
+            char = self.l2d.read(1)
+
+            if char == b"S" or char == b"Q" or char == b"2" or char == b"P":
+                text += char.decode("utf-8")
+            else:
+                text = ""
+
+        self.l2d.seek(self.l2d.tell() - 4)
 
     def __read_sq2p(self):
         sq2p_offset = self.l2d.tell()
