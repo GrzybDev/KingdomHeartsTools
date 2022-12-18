@@ -32,6 +32,15 @@ class TIM2:
 
         self.tim2.seek(self.tim2.tell() + (self.tim2.tell() % 16))
 
+    def __get_image_format(self, bpp):
+        match bpp:
+            case 2:
+                return "RGB"
+            case 3:
+                return "RGBA"
+
+        raise Exception("Bits per pixel not supported: " + str(bpp))
+
     def __read_image(self):
         start_offset = self.tim2.tell()
 
@@ -55,9 +64,10 @@ class TIM2:
 
         self.tim2.seek(start_offset + image_data.headerLength)
         raw_image_bytes = self.tim2.read(image_data.imageDataLength)
+
         self.images.append(
             Image.frombytes(
-                "RGBA",
+                self.__get_image_format(image_data.bitsPerPixel),
                 (image_data.imageWidth, image_data.imageHeight),
                 raw_image_bytes,
                 "raw",
@@ -111,4 +121,8 @@ class TIM2:
             else:
                 f.seek(padding_length, 1)
 
-            f.write(self.images[i].tobytes("raw", "RGBA"))
+            f.write(
+                self.images[i].tobytes(
+                    "raw", self.__get_image_format(image_info.bitsPerPixel)
+                )
+            )
