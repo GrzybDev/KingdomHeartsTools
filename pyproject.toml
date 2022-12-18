@@ -10,6 +10,7 @@ python = "^3.10"
 typer = {extras = ["all"], version = "^0.7.0"}
 filedate = "^2.0"
 polib = "^1.1.1"
+pillow = "^9.3.0"
 
 
 [build-system]
