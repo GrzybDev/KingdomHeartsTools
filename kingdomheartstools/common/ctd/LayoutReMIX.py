@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class Layout:
+class LayoutReMIX:
     unknown_1: int
     unknown_2: int
     unknown_3: int
