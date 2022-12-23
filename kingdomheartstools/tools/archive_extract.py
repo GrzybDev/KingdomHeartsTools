@@ -11,7 +11,11 @@ from pathlib import Path
 
 import filedate
 
+from kingdomheartstools.common.RemasteredEntry import RemasteredEntry
+from kingdomheartstools.helpers.EGSEncryption import EGSEncryption
+
 from ..common.AssetHeader import AssetHeader
+from ..common.constants import languages, worlds
 from ..common.HeaderEntry import HeaderEntry
 from ..resources import path as resource_path
 
@@ -30,13 +34,73 @@ class ArchiveExtract:
         self.__read_header(Path(input_path).with_suffix(".hed"))
 
     def __load_file_map(self):
+        for language in languages:
+            for world in worlds:
+                for index in range(64):
+                    ard_filename = os.path.join(
+                        "ard/", language, f"{world}{index:02d}.ard"
+                    ).replace("\\", "/")
+                    map_filename = os.path.join(
+                        "map", language, f"{world}{index:02d}.map"
+                    ).replace("\\", "/")
+                    bar_filename = os.path.join(
+                        "map", language, f"{world}{index:02d}.bar"
+                    ).replace("\\", "/")
+
+                    self.__file_map[
+                        hashlib.md5(ard_filename.encode()).hexdigest()
+                    ] = ard_filename
+                    self.__file_map[
+                        hashlib.md5(map_filename.encode()).hexdigest()
+                    ] = map_filename
+                    self.__file_map[
+                        hashlib.md5(bar_filename.encode()).hexdigest()
+                    ] = bar_filename
+
+        for additional_file in [
+            "item-011.imd",
+            "KH2.IDX",
+            "ICON/ICON0.PNG",
+            "ICON/ICON0_EN.png",
+        ]:
+            md5 = hashlib.md5(additional_file.encode()).hexdigest()
+            self.__file_map[md5] = additional_file.strip()
+
         for file in glob.glob(f"{resource_path}/*.txt"):
             with open(file, "r", encoding="utf-8") as f:
                 file_list = f.readlines()
 
                 for file_name in file_list:
-                    md5 = hashlib.md5(file_name.encode().strip()).hexdigest()
-                    self.__file_map[md5] = file_name.strip()
+                    additional_files = []
+                    filename = file_name.strip()
+
+                    if filename.find("anm/") != -1:
+                        additional_files.append(filename.replace("anm/", "anm/jp/"))
+                        additional_files.append(filename.replace("anm/", "anm/us/"))
+                        additional_files.append(filename.replace("anm/", "anm/fm/"))
+
+                    if filename.find("bgm/") != -1:
+                        additional_files.append(filename.replace(".bgm", ".win32.scd"))
+
+                    if filename.find("se/") != -1:
+                        additional_files.append(filename.replace(".seb", ".win32.scd"))
+
+                    if filename.find("vagstream/") != -1:
+                        additional_files.append(filename.replace(".vas", ".win32.scd"))
+
+                    if filename.find("gumibattle/se/") != -1:
+                        additional_files.append(filename.replace(".seb", ".win32.scd"))
+
+                    if filename.find("voice/") != -1:
+                        additional_files.append(filename.replace(".vag", ".win32.scd"))
+                        additional_files.append(filename.replace(".vsb", ".win32.scd"))
+
+                    md5 = hashlib.md5(filename.encode()).hexdigest()
+                    self.__file_map[md5] = filename
+
+                    for additional_file in additional_files:
+                        md5 = hashlib.md5(additional_file.encode()).hexdigest()
+                        self.__file_map[md5] = additional_file
 
     def __read_header(self, header_path):
         header_length = os.stat(header_path).st_size
@@ -84,7 +148,10 @@ class ArchiveExtract:
     def __extract_asset(self, filepath, entry):
         self.package.seek(entry.offset)
 
-        header_raw = BytesIO(self.package.read(0x10))
+        header_raw_bytes = self.package.read(0x10)
+        header_raw = BytesIO(header_raw_bytes)
+
+        encryption_key = EGSEncryption.generate_key(header_raw_bytes)
 
         asset_header = AssetHeader(
             decompressedLength=int.from_bytes(header_raw.read(0x4), "little"),
@@ -97,15 +164,24 @@ class ArchiveExtract:
             ),
         )
 
-        if asset_header.remasteredAssetCount > 0:
-            logger.warning(
-                "Assets that are remastered are not supported yet, skipping..."
+        remastered_assets_headers = []
+
+        for i in range(asset_header.remasteredAssetCount):
+            remastered_assets_headers.append(
+                RemasteredEntry(
+                    name=self.package.read(0x20).decode("utf-8").strip("\0"),
+                    offset=int.from_bytes(self.package.read(4), "little"),
+                    originalAssetOffset=int.from_bytes(self.package.read(4), "little"),
+                    decompressedLength=int.from_bytes(self.package.read(4), "little"),
+                    compressedLength=int.from_bytes(
+                        self.package.read(4), "little", signed=True
+                    ),
+                )
             )
-            return
 
         with open(filepath, "wb") as writer:
             filedate.File(filepath).set(created=asset_header.creationDate)
-            writer.write(self.__get_asset_data(asset_header))
+            writer.write(self.__get_asset_data(asset_header, encryption_key))
 
             with open(f"{filepath}.json", "w", encoding="utf-8") as f:
                 file_config = {
@@ -115,7 +191,28 @@ class ArchiveExtract:
 
                 json.dump(file_config, f)
 
-    def __get_asset_data(self, header):
+        remastered_folder = os.path.join(
+            os.path.dirname(filepath), "remastered_" + os.path.basename(filepath)
+        )
+        remastered_folder = Path(remastered_folder)
+
+        for remastered_asset_header in remastered_assets_headers:
+            logger.info(
+                f"Extracting remastered asset {remastered_asset_header.name}..."
+            )
+
+            if self.package.tell() % 0x10 != 0:
+                self.package.seek(0x10 - (self.package.tell() % 0x10), 1)
+
+            Path(remastered_folder / remastered_asset_header.name).parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            with open(remastered_folder / remastered_asset_header.name, "wb") as writer:
+                writer.write(
+                    self.__get_asset_data(remastered_asset_header, encryption_key)
+                )
+
+    def __get_asset_data(self, header, encryption_key):
         data_length = (
             header.compressedLength
             if header.compressedLength >= 0
@@ -125,8 +222,10 @@ class ArchiveExtract:
         packet_data = self.package.read(data_length)
 
         if header.compressedLength > -2:
-            logger.warning("Encrypted assets are not supported yet, skipping...")
-            return
+            for i in range(0, min(len(packet_data), 0x100), 0x10):
+                packet_data = EGSEncryption.decrypt_chunk(
+                    encryption_key, packet_data, i
+                )
 
         if header.compressedLength > -1:
             return self.__decompress_asset_data(packet_data, header.decompressedLength)
@@ -137,9 +236,9 @@ class ArchiveExtract:
         decompressed_data = zlib.decompress(data)
 
         if len(decompressed_data) != expected_length:
-            logger.error(
-                "Decompressed data length does not match, something is wrong with the archive, exiting..."
+            logger.warning(
+                "Decompressed data length does not match, something is wrong with the archive... (expected: %d, got: %d)"
+                % (expected_length, len(decompressed_data))
             )
-            sys.exit(1)
 
         return decompressed_data
