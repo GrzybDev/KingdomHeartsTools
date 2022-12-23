@@ -5,8 +5,10 @@ from pathlib import Path
 
 from polib import POEntry, POFile
 
+from kingdomheartstools.common.ctd.LayoutBBS import LayoutBBS
+
 from ..common.ctd.Header import Header
-from ..common.ctd.Layout import Layout
+from ..common.ctd.LayoutReMIX import LayoutReMIX
 from ..common.ctd.MessageHeader import MessageHeader
 from ..common.ctd.Text import Text
 
@@ -66,58 +68,91 @@ class CTDDecompile:
         for i, text in enumerate(self.message_entries):
             self.ctd.seek(text.offset)
 
-            # Read null terminated UTF-16 string
-            text = ""
+            # Read null terminated UTF-16 (version 503) or cp932 (version 1) string
+            text = b""
 
             while True:
-                char = self.ctd.read(2).decode("utf-16")
+                if self.header.version == 503:
+                    char = self.ctd.read(2)
+                else:
+                    char = self.ctd.read(1)
 
-                if char == "\0":
+                if int.from_bytes(char, "little") == 0:
                     break
 
                 text += char
 
+            text = text.decode("utf-16" if self.header.version == 503 else "cp932")
             self.text_entries.append(Text(index=i, text=self.__format_string(text)))
 
     def __read_message_header(self):
+        offset_size = 2 if self.header.version == 503 else 4
+
         message = MessageHeader(
             id=int.from_bytes(self.ctd.read(2), "little"),
             set=int.from_bytes(self.ctd.read(2), "little"),
-            offset=int.from_bytes(self.ctd.read(2), "little") - self.header.text_offset,
-            layoutIndex=int(int.from_bytes(self.ctd.read(2), "little") / 0x10),
+            offset=int.from_bytes(self.ctd.read(offset_size), "little"),
+            layoutIndex=int(
+                int.from_bytes(self.ctd.read(offset_size), "little") / 0x10
+            ),
         )
 
-        real_offset = (
-            self.header.text_offset
-            + ((0xFFFF * self.offset_multiplier) + message.offset)
-            + self.offset_multiplier
-        )
+        if self.header.version == 503:
+            message.offset = message.offset - self.header.text_offset
 
-        if real_offset < self.last_offset:
-            self.offset_multiplier += 1
-            real_offset = self.header.text_offset + (
-                (0xFFFF * self.offset_multiplier) + message.offset
+            real_offset = (
+                self.header.text_offset
+                + ((0xFFFF * self.offset_multiplier) + message.offset)
+                + self.offset_multiplier
             )
 
-        message.offset = real_offset
-        self.last_offset = real_offset
+            if real_offset < self.last_offset:
+                self.offset_multiplier += 1
+                real_offset = self.header.text_offset + (
+                    (0xFFFF * self.offset_multiplier) + message.offset
+                )
+
+            message.offset = real_offset
+            self.last_offset = real_offset
         return message
 
     def __read_layout(self):
-        return Layout(
-            unknown_1=int.from_bytes(self.ctd.read(2), "little"),
-            unknown_2=int.from_bytes(self.ctd.read(2), "little"),
-            unknown_3=int.from_bytes(self.ctd.read(2), "little"),
-            unknown_4=int.from_bytes(self.ctd.read(2), "little"),
-            unknown_5=int.from_bytes(self.ctd.read(1), "little"),
-            unknown_6=int.from_bytes(self.ctd.read(1), "little"),
-            unknown_7=int.from_bytes(self.ctd.read(1), "little"),
-            unknown_8=int.from_bytes(self.ctd.read(1), "little"),
-            unknown_9=int.from_bytes(self.ctd.read(2), "little"),
-            unknown_10=int.from_bytes(self.ctd.read(2), "little"),
-            unknown_11=int.from_bytes(self.ctd.read(2), "little"),
-            unknown_12=int.from_bytes(self.ctd.read(2), "little"),
-        )
+        if self.header.version == 1:
+            return LayoutBBS(
+                dialogX=int.from_bytes(self.ctd.read(2), "little"),
+                dialogY=int.from_bytes(self.ctd.read(2), "little"),
+                dialogWidth=int.from_bytes(self.ctd.read(2), "little"),
+                dialogHeight=int.from_bytes(self.ctd.read(2), "little"),
+                dialogAlignment=int.from_bytes(self.ctd.read(1), "little"),
+                dialogBorders=int.from_bytes(self.ctd.read(1), "little"),
+                textAlignment=int.from_bytes(self.ctd.read(1), "little"),
+                unknown_1=int.from_bytes(self.ctd.read(1), "little"),
+                fontSize=int.from_bytes(self.ctd.read(2), "little"),
+                horizontalSpace=int.from_bytes(self.ctd.read(2), "little"),
+                verticalSpace=int.from_bytes(self.ctd.read(2), "little"),
+                textX=int.from_bytes(self.ctd.read(2), "little"),
+                textY=int.from_bytes(self.ctd.read(2), "little"),
+                dialogHook=int.from_bytes(self.ctd.read(2), "little"),
+                dialogHookX=int.from_bytes(self.ctd.read(2), "little"),
+                unknown_2=int.from_bytes(self.ctd.read(2), "little"),
+                unknown_3=int.from_bytes(self.ctd.read(2), "little"),
+                unknown_4=int.from_bytes(self.ctd.read(2), "little"),
+            )
+        else:
+            return LayoutReMIX(
+                unknown_1=int.from_bytes(self.ctd.read(2), "little"),
+                unknown_2=int.from_bytes(self.ctd.read(2), "little"),
+                unknown_3=int.from_bytes(self.ctd.read(2), "little"),
+                unknown_4=int.from_bytes(self.ctd.read(2), "little"),
+                unknown_5=int.from_bytes(self.ctd.read(1), "little"),
+                unknown_6=int.from_bytes(self.ctd.read(1), "little"),
+                unknown_7=int.from_bytes(self.ctd.read(1), "little"),
+                unknown_8=int.from_bytes(self.ctd.read(1), "little"),
+                unknown_9=int.from_bytes(self.ctd.read(2), "little"),
+                unknown_10=int.from_bytes(self.ctd.read(2), "little"),
+                unknown_11=int.from_bytes(self.ctd.read(2), "little"),
+                unknown_12=int.from_bytes(self.ctd.read(2), "little"),
+            )
 
     def __format_string(self, text):
         priv_chars = "".join(c for c in text if unicodedata.category(c) in {"Co"})
